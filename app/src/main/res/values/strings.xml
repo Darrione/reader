@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Reader</string>
+    <string name="library_title">Knihovna</string>
+    <string name="library_empty">Zatím žádné knihy. Klepnutím na + naimportujte EPUB.</string>
+    <string name="library_import">Importovat EPUB</string>
+    <string name="library_delete_confirm">Smazat knihu?</string>
+    <string name="settings_title">Nastavení</string>
+    <string name="settings_tts_speed">Rychlost předčítání</string>
+    <string name="settings_tts_language_note">Výchozí jazyk předčítání: angličtina</string>
+    <string name="reader_toc">Obsah</string>
+    <string name="reader_play">Přehrát</string>
+    <string name="reader_pause">Pauza</string>
+    <string name="reader_next_sentence">Další věta</string>
+    <string name="reader_previous_sentence">Předchozí věta</string>
+    <string name="reader_voice_missing_title">Chybí hlasová data</string>
+    <string name="reader_voice_missing_action">Stáhnout hlas</string>
+    <string name="reader_open_error">Knihu se nepodařilo otevřít.</string>
+</resources>
