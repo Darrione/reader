@@ -3,8 +3,12 @@ package com.reader.app.player
 import android.app.Application
 import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationManagerCompat
@@ -49,6 +53,57 @@ class TtsPlaybackService : MediaSessionService() {
 
         val session: StateFlow<Session?> = sessionMutable.asStateFlow()
 
+        /** Whether we paused playback ourselves because of an audio focus loss (e.g. a phone
+         * call), as opposed to the user pausing manually - only then should focus regain
+         * auto-resume playback. */
+        private var pausedByFocusLoss = false
+
+        private var audioFocusRequest: AudioFocusRequest? = null
+
+        private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+            val navigator = session.value?.navigator ?: return@OnAudioFocusChangeListener
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
+                -> {
+                    if (navigator.playback.value.playWhenReady) {
+                        pausedByFocusLoss = true
+                        navigator.pause()
+                    }
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    if (pausedByFocusLoss) {
+                        pausedByFocusLoss = false
+                        navigator.play()
+                    }
+                }
+            }
+        }
+
+        private fun requestAudioFocus() {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(audioFocusListener)
+                .build()
+            audioFocusRequest = request
+            audioManager.requestAudioFocus(request)
+        }
+
+        private fun abandonAudioFocus() {
+            val request = audioFocusRequest ?: return
+            audioFocusRequest = null
+            pausedByFocusLoss = false
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.abandonAudioFocusRequest(request)
+        }
+
         fun closeSession() {
             session.value?.let { session ->
                 session.mediaSession.release()
@@ -56,6 +111,7 @@ class TtsPlaybackService : MediaSessionService() {
                 session.navigator.close()
                 sessionMutable.value = null
             }
+            abandonAudioFocus()
         }
 
         fun <N> openSession(
@@ -69,6 +125,7 @@ class TtsPlaybackService : MediaSessionService() {
 
             addSession(mediaSession)
             sessionMutable.value = Session(bookId, navigator, mediaSession)
+            requestAudioFocus()
         }
 
         private fun createSessionActivityIntent(): PendingIntent {
